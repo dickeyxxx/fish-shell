@@ -62,7 +62,7 @@ static pid_t initial_fg_process_group = -1;
 
 /// This struct maintains the current state of the terminal size. It is updated on demand after
 /// receiving a SIGWINCH.  Use common_get_width()/common_get_height() to access.
-owning_lock<struct winsize> termsize = {{USHRT_MAX, USHRT_MAX, USHRT_MAX, USHRT_MAX}};
+static owning_lock<struct winsize> termsize = {{USHRT_MAX, USHRT_MAX, USHRT_MAX, USHRT_MAX}};
 static volatile sig_atomic_t termsize_valid = false;
 
 static char *wcs2str_internal(const wchar_t *in, char *out);
@@ -1433,10 +1433,12 @@ static bool check_winsize_changes(struct winsize *out_result) {
     bool changed = false;
     if (! termsize_valid) {
         struct winsize new_termsize = {0, 0, 0, 0};
+        int err = -1;
 #ifdef HAVE_WINSIZE
-        ioctl(STDOUT_FILENO, TIOCGWINSZ, &new_termsize);
+        err = ioctl(STDOUT_FILENO, TIOCGWINSZ, &new_termsize);
 #endif
-        if (new_termsize.ws_col != termsize.ws_col ||
+        if (err == -1 ||
+            new_termsize.ws_col != termsize.ws_col ||
             new_termsize.ws_row != termsize.ws_row) {
             validate_new_termsize(&new_termsize);
             termsize.ws_col = new_termsize.ws_col;
