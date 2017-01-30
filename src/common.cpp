@@ -1437,9 +1437,7 @@ static bool check_winsize_changes(struct winsize *out_result) {
 #ifdef HAVE_WINSIZE
         err = ioctl(STDOUT_FILENO, TIOCGWINSZ, &new_termsize);
 #endif
-        if (err == -1 ||
-            new_termsize.ws_col != termsize.ws_col ||
-            new_termsize.ws_row != termsize.ws_row) {
+        if (! (err != -1 && new_termsize.ws_col == termsize.ws_col && new_termsize.ws_row == termsize.ws_row)) {
             validate_new_termsize(&new_termsize);
             termsize.ws_col = new_termsize.ws_col;
             termsize.ws_row = new_termsize.ws_row;
