@@ -1425,43 +1425,29 @@ static void export_new_termsize(const struct winsize &new_termsize) {
 #endif
 }
 
-// Returns the current termsize by reference.
-// Return true if it changed
-static bool check_winsize_changes(struct winsize *out_result) {
+/// Updates termsize as needed, and returns a copy of the winsize.
+struct winsize get_current_winsize() {
     auto lock_ts = termsize.acquire();
     struct winsize &termsize = lock_ts.value;
-    bool changed = false;
-    if (! termsize_valid) {
-        struct winsize new_termsize = {0, 0, 0, 0};
-        int err = -1;
-#ifdef HAVE_WINSIZE
-        err = ioctl(STDOUT_FILENO, TIOCGWINSZ, &new_termsize);
-#endif
-        if (! (err != -1 && new_termsize.ws_col == termsize.ws_col && new_termsize.ws_row == termsize.ws_row)) {
-            validate_new_termsize(&new_termsize);
-            termsize.ws_col = new_termsize.ws_col;
-            termsize.ws_row = new_termsize.ws_row;
-            changed = true;
-        }
-        termsize_valid = true;
-    }
-    *out_result = termsize;
-    return changed;
-}
 
-/// Updates termsize as needed, and returns a copy of the winsize.
-/// Note
-struct winsize get_current_winsize() {
-    struct winsize new_termsize;
-    if (check_winsize_changes(&new_termsize)) {
-        // It changed!
-        // Note it's important that we don't hold the lock here,
-        // since we may be calling out to user code
-        // TODO: we can't export except on the main thread
-        // need to make this thread safe!
-        export_new_termsize(new_termsize);
+    if (termsize_valid) return termsize;
+
+    struct winsize new_termsize = {0, 0, 0, 0};
+#ifdef HAVE_WINSIZE
+    errno = 0;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &new_termsize) != -1 &&
+        new_termsize.ws_col == termsize.ws_col && new_termsize.ws_row == termsize.ws_row) {
+        termsize_valid = true;
+        return termsize;
     }
-    return new_termsize;
+#endif
+
+    validate_new_termsize(&new_termsize);
+    export_new_termsize(new_termsize);
+    termsize.ws_col = new_termsize.ws_col;
+    termsize.ws_row = new_termsize.ws_row;
+    termsize_valid = true;
+    return termsize;
 }
 
 int common_get_width() { return get_current_winsize().ws_col; }
